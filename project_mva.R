@@ -15,7 +15,10 @@ options(warn = -1)
 packags <- c("tidyverse", "knitr", "kableExtra","ggthemes", "treemap", "highcharter", "summarytools", "ggcorrplot", "knitr","formattable")
 purrr::walk(packags, library, character.only = T, quietly = T)
 
-data= Suicide.Rate.Analysis
+data <-read.csv("C:/Users/nitis/OneDrive/Desktop/Subject Semester 2/MVA/Project/Suicide Rate Analysis.csv") 
+
+data
+#data= Suicide.Rate.Analysis
 names(data)[1]= "country"
 data
 
@@ -121,9 +124,9 @@ t.test(data_1$age,data_1$sucides_no, var.equal = TRUE, paired=FALSE)
 t.test(data_1$gdp_per_capita,data_1$sucides_no, var.equal = TRUE, paired=FALSE)
 data_1
 
------
-  # PCA
-  head(data)
+######################################################################################################################################################
+# PCA
+head(data)
 
 cor(data[,c(5,6,11)])
 
@@ -225,7 +228,8 @@ fviz_pca_biplot(res_2015, labelsize = 4, repel = T,title = "PCA - Biplot 2015") 
 #The countries on the top right are countries with a large population and a high suicide rate. 
 #While the countries at the bottom have a small population but a very high GDP per capita.  
 
-
+#######################################################################################################################################################
+#clustering
 
 data<-transform(data, sex = as.numeric(sex))
 data<-transform(data, age = as.numeric(age))
@@ -236,6 +240,7 @@ data<-na.omit(data)
 data
 
 str(data)
+
 #single
 hclustfunc <- function(x, method = "single", dmeth = "euclidean") {    
   hclust(dist(x, method = dmeth), method = method)}
@@ -314,7 +319,7 @@ cluster2_age <- sr2 %>%
   scale_y_log10() +
   ggtitle("Cluster 2 GDP ~ No. of Suicides by Age")
 
-plot(cluster2_age)
+ plot(cluster2_age)
 
 #Victims in Cluster 2 are all from the United States.
 #They are all Male.
@@ -339,13 +344,6 @@ plot(cluster3_country)
 #Number of Suicides for each age group have not changed much since year 2000.
 
 
-(kmeans1.data <- kmeans(matstd.data,2,nstart = 10))
-clus1 <- matrix(names(kmeans1.data$cluster [kmeans1.data$cluster == 2]), 
-                ncol=1, nrow=length(kmeans2.data$cluster[kmeans1.data$cluster == 2]))
-colnames(clus1) <- "Cluster 1"
-
-
-
 (kmeans2.data <- kmeans(matstd.data,2,nstart = 10))
 clus2 <- matrix(names(kmeans2.data$cluster [kmeans2.data$cluster == 2]), 
                 ncol=1, nrow=length(kmeans2.data$cluster[kmeans2.data$cluster == 2]))
@@ -357,15 +355,204 @@ clus3 <- matrix(names(kmeans2.data$cluster [kmeans2.data$cluster == 2]),
                 ncol=1, nrow=length(kmeans3.data$cluster[kmeans3.data$cluster == 2]))
 colnames(clus3) <- "Cluster 3"
 
-list(clus1,clus2,clus3)
+list(clus2,clus3)
+
+##############################################################################################################################
+# Factor Analysis
+# Computing Correlation Matrix
+cor.data <- cor(data)
+cor.data
+#plot(cor.data)
+data_pca <- prcomp(data, scale=TRUE)
+summary(data_pca)
+plot(data_pca)
+
+(eigen_data <- round(data_pca$sdev^2,2))
+names(eigen_data) <- paste("PC",1:12,sep="")
+eigen_data
+
+sumlambdas <- sum(eigen_data)
+sumlambdas
+
+propvar <- round(eigen_data/sumlambdas,2)
+propvar
+
+cumvar_data <- cumsum(propvar)
+cumvar_data
+
+matlambdas <- rbind(eigen_data,propvar,cumvar_data)
+matlambdas
+
+rownames(matlambdas) <- c("Eigenvalues","Prop. variance","Cum. prop. variance")
+rownames(matlambdas)
+
+eigvec.data <- data_pca$rotation
+print(data_pca)
+
+pcafactors.data <- eigvec.data[,1:5]
+pcafactors.data
+
+unrot.fact.data <- sweep(pcafactors.data,MARGIN=2,data_pca$sdev[1:4],`*`)
+unrot.fact.data
+
+communalities.data <- rowSums(unrot.fact.data^2)
+communalities.data
+
+#Performing the varimax rotation
+rot.fact.data <- varimax(unrot.fact.data)
+View(unrot.fact.data)
+rot.fact.data
+fact.load.data<- rot.fact.data$loadings[1:12,1:5]
+fact.load.data
+scale.data <- scale(data)
+scale.data
+#as.matrix(scale.data)%%fact.load.data%%solve(t(fact.load.data)%*%fact.load.data)
+library(psych)
+fit.pc <- principal(data, nfactors=5, rotate="varimax")
+fit.pc
+round(fit.pc$values, 3)
+
+# Communalities
+fit.pc$communality
+
+# Rotated factor scores
+fit.pc$scores
+
+#See factor recommendation
+fa.parallel(data)
+
+#Correlations within Factors
+fa.plot(fit.pc)
+
+#Visualize the relationship
+fa.diagram(fit.pc)
+vss(data)
 
 
 
+####################################################################################################################################
+
+#Multivariate Analysis
+
+#correlation between pairs of variables
+data[,sapply(data, is.numeric)] %>%  cor(use = "complete.obs")
+fit1 <- lm(suicides_no~sex+population+suicides.100k.pop+country+HDI.for.year+generation, data=data)
+summary(fit1)
+
+# country has most p-value among variables so we can remove it
+fit2 <- lm(suicides_no~sex+population+suicides.100k.pop+HDI.for.year+generation, data=data)
+anova(fit1, fit2)
+
+#The results of anova shows that p-value>0.05 so we can accept null hypothesis(country is not important) 
+coefficients(fit2)
+
+library(GGally)
+ggpairs(data=data, title="Data")
+confint(fit2,level=0.95)
+anova(fit2)
+vcov(fit2)
+cov2cor(vcov(fit2))
+temp <- influence.measures(fit2)
+temp
+View(temp)
+
+#diagnostic plots
+plot(fit2)
 
 
+# Assessing Outliers
+library(car)
+outlierTest(fit2)
+qqPlot(fit2, main="QQ Plot")
+leveragePlots(fit2) # leverage plots
+plot(fit2)
 
+# Influence Plot
+library(mvinfluence)
 
+influencePlot(fit2, id.method="identify", main="Influence Plot", sub="Circle size is proportial to Cook's Distance" )
+# Normality of Residuals
+# qq plot for studentized resid
+qqPlot(fit2, main="QQ Plot")
+# distribution of studentized residuals
+library(MASS)
+sresid <- studres(fit2)
+hist(sresid, freq=FALSE,
+     main="Distribution of Studentized Residuals")
+xfit<-seq(min(sresid),max(sresid),length=40)
+yfit<-dnorm(xfit)
+lines(xfit, yfit)
 
+#Non-constant Error Variance
+# Evaluate homoscedasticity
+# non-constant error variance test
+ncvTest(fit2)
+# plot studentized residuals vs. fitted values
+spreadLevelPlot(fit2)
+#Multi-collinearity
+# Evaluate Collinearity
+vif(fit2) # variance inflation factors
+sqrt(vif(fit2)) > 2 # problem?
+#Nonlinearity
+# component + residual plot
+crPlots(fit2)
+# Ceres plots
+#ceresPlots(fit2)
+
+#Non-independence of Errors
+#Test Autocorrelated Errors
+durbinWatsonTest(fit2)
+
+# Global test of model assumptions
+library(gvlma)
+gvmodel <- gvlma(fit2)
+summary(gvmodel)
+fit2
+summary(fit2)
+fit3 <- fit2
+fit4 <- lm(suicides_no~sex+population+suicides.100k.pop+HDI.for.year+generation, data=data)
+fit4
+
+# compare models
+anova(fit3, fit4)
+step <- stepAIC(fit2, direction="both")
+step$anova # display results
+
+library(leaps)
+leaps<-regsubsets(suicides_no~sex+population+suicides.100k.pop+HDI.for.year+generation, data=data, nbest=10)
+# view results
+summary(leaps)
+
+# plot a table of models showing variables in each model.
+# models are ordered by the selection statistic.
+plot(leaps)
+plot(leaps,scale="r2")
+#subsets(leaps, statistic="rsq")
+
+# All Subsets Regression
+plot(leaps,scale="bic")
+summary(leaps)
+?regsubsets
+summary(leaps)
+View(leaps)
+leaps
+coef(leaps,1:5)
+
+# Calculate Relative Importance for Each Predictor
+library(relaimpo)
+calc.relimp(fit2 ,type=c("lmg","last","first","pratt"),rela=TRUE)
+
+# Bootstrap Measures of Relative Importance (1000 samples)
+boot <- boot.relimp(fit2, b = 1000, type = c("lmg", "last", "first", "pratt"), rank = TRUE, diff = TRUE, rela = TRUE)
+booteval.relimp(boot) # print result
+plot(booteval.relimp(boot,sort=TRUE)) # plot result
+#https://rpubs.com/davoodastaraky/mtRegression
+summary(fit2)
+
+#Ok we got our standardize value. As we saw above the most valuable predictor of this model is gdp_for_year. We can interpreted that the more increase in GDP per year the more suicide rate would increase. Assuming this dataset or sample is a great representation of population.
+#The second one is suicides_per_100k_pop. 
+#And the third one it gdp_per_capital.
+#It's telling us that the more GDP per capital is decreased the more suicide rate will increase.
 
 
 
